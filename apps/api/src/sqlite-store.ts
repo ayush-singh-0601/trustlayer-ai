@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import Database from "better-sqlite3";
+import { DatabaseSync } from "node:sqlite";
 import {
   assessmentSchema,
   assetSchema,
@@ -25,15 +25,16 @@ interface JsonRow {
 }
 
 export class SqliteTrustLayerStore implements TrustLayerStore {
-  readonly #database: Database.Database;
+  readonly #database: DatabaseSync;
 
   constructor(databasePath: string) {
     mkdirSync(dirname(databasePath), { recursive: true });
-    this.#database = new Database(databasePath);
-    this.#database.pragma("journal_mode = WAL");
-    this.#database.pragma("foreign_keys = ON");
-    this.#database.pragma("synchronous = NORMAL");
+    this.#database = new DatabaseSync(databasePath);
     this.#database.exec(`
+      PRAGMA journal_mode = WAL;
+      PRAGMA foreign_keys = ON;
+      PRAGMA synchronous = NORMAL;
+
       CREATE TABLE IF NOT EXISTS assets (
         id TEXT PRIMARY KEY,
         organization_id TEXT NOT NULL,
@@ -69,7 +70,7 @@ export class SqliteTrustLayerStore implements TrustLayerStore {
   async listAssets(organizationId: string): Promise<Asset[]> {
     const rows = this.#database
       .prepare("SELECT payload FROM assets WHERE organization_id = ? ORDER BY rowid DESC")
-      .all(organizationId) as JsonRow[];
+      .all(organizationId) as unknown as JsonRow[];
     return rows.map(({ payload }) => assetSchema.parse(JSON.parse(payload)));
   }
 
@@ -133,7 +134,7 @@ export class SqliteTrustLayerStore implements TrustLayerStore {
     input: CreateAssessmentInput,
     idempotencyKey: string,
   ): Promise<Assessment> {
-    return this.#database.transaction(() => {
+    return this.#transaction(() => {
       const existing = this.#database
         .prepare("SELECT payload FROM assessments WHERE organization_id = ? AND idempotency_key = ?")
         .get(organizationId, idempotencyKey) as JsonRow | undefined;
@@ -155,7 +156,7 @@ export class SqliteTrustLayerStore implements TrustLayerStore {
         )
         .run(assessment.id, organizationId, assessment.assetId, idempotencyKey, JSON.stringify(assessment));
       return assessment;
-    })();
+    });
   }
 
   async getAssessment(organizationId: string, assessmentId: string): Promise<Assessment | null> {
@@ -170,7 +171,7 @@ export class SqliteTrustLayerStore implements TrustLayerStore {
     assessmentId: string,
     input: FinalizeAssessmentInput,
   ): Promise<Assessment> {
-    return this.#database.transaction(() => {
+    return this.#transaction(() => {
       const row = this.#database
         .prepare("SELECT payload FROM assessments WHERE organization_id = ? AND id = ?")
         .get(organizationId, assessmentId) as JsonRow | undefined;
@@ -205,7 +206,7 @@ export class SqliteTrustLayerStore implements TrustLayerStore {
           .run(JSON.stringify(updated), organizationId, asset.id);
       }
       return assessment;
-    })();
+    });
   }
 
   async dashboard(organizationId: string): Promise<DashboardSummary> {
@@ -229,6 +230,18 @@ export class SqliteTrustLayerStore implements TrustLayerStore {
 
   close(): void {
     this.#database.close();
+  }
+
+  #transaction<T>(operation: () => T): T {
+    this.#database.exec("BEGIN IMMEDIATE");
+    try {
+      const result = operation();
+      this.#database.exec("COMMIT");
+      return result;
+    } catch (error) {
+      this.#database.exec("ROLLBACK");
+      throw error;
+    }
   }
 }
 

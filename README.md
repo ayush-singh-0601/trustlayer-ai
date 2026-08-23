@@ -6,7 +6,7 @@ It is not a hosted service. There are no accounts, subscriptions, cloud database
 
 ## Quick start
 
-Requirements: [Node.js 22 or newer](https://nodejs.org/) and npm.
+Requirements: [Node.js 22.16 or newer](https://nodejs.org/) and npm.
 
 On Windows:
 

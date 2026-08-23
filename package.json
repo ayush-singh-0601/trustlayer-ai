@@ -11,7 +11,7 @@
     "workers/*"
   ],
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=22.16.0"
   },
   "scripts": {
     "build:packages": "npm run build -w @trustlayer/contracts && npm run build -w @trustlayer/risk-engine && npm run build -w @trustlayer/scanner-sdk",
