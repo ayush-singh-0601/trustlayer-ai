@@ -1,0 +1,37 @@
+{
+  "name": "trustlayer-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Open-source, local-first AI security assessment and trust scoring",
+  "license": "Apache-2.0",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "workers/*"
+  ],
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "build:packages": "npm run build -w @trustlayer/contracts && npm run build -w @trustlayer/risk-engine && npm run build -w @trustlayer/scanner-sdk",
+    "build": "npm run build:packages && npm run build -w @trustlayer/api && npm run build -w @trustlayer/aig-worker && npm run build -w @trustlayer/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run build:packages && npm run test --workspaces --if-present",
+    "start": "node scripts/start-local.mjs",
+    "local": "npm start",
+    "dev:api": "npm run build:packages && npm run dev -w @trustlayer/api",
+    "dev:web": "npm run build:packages && npm run dev -w @trustlayer/web",
+    "scanner:start": "node scripts/scanner.mjs start",
+    "scanner:stop": "node scripts/scanner.mjs stop",
+    "scanner:status": "node scripts/scanner.mjs status",
+    "aig:sync": "node infrastructure/aig/sync-upstream.mjs",
+    "aig:verify": "node infrastructure/aig/verify-contract.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "7.0.2",
+    "vitest": "4.1.11"
+  }
+}

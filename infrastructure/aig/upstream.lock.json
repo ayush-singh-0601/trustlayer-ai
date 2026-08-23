@@ -1,0 +1,7 @@
+{
+  "repository": "https://github.com/Tencent/AI-Infra-Guard.git",
+  "tag": "v4.1.15",
+  "commit": "31b2184b0b5656f44b3cb2eb5164775dc750c46f",
+  "license": "Apache-2.0",
+  "checkoutPath": ".upstream/AI-Infra-Guard"
+}

@@ -1,0 +1,44 @@
+name: trustlayer-local-scanner
+
+services:
+  aig-server:
+    image: zhuquelab/aig-server:v4.1.15
+    ports:
+      - "127.0.0.1:8088:8088"
+    environment:
+      APP_ENV: production
+      UPLOAD_DIR: /app/uploads
+      DB_PATH: /app/db/tasks.db
+      TZ: UTC
+    volumes:
+      - aig-data:/app/data
+      - aig-db:/app/db
+      - aig-logs:/app/logs
+      - aig-uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8088/"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 15s
+    restart: unless-stopped
+
+  aig-agent:
+    image: zhuquelab/aig-agent:v4.1.15
+    privileged: true
+    security_opt:
+      - seccomp:unconfined
+    shm_size: 2gb
+    environment:
+      AIG_SERVER: aig-server:8088
+      TZ: UTC
+    depends_on:
+      aig-server:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  aig-data:
+  aig-db:
+  aig-logs:
+  aig-uploads:

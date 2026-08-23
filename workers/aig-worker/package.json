@@ -1,0 +1,19 @@
+{
+  "name": "@trustlayer/aig-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --pretty false",
+    "test": "vitest run",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@trustlayer/contracts": "*",
+    "@trustlayer/scanner-sdk": "*",
+    "zod": "4.4.3"
+  }
+}
+
