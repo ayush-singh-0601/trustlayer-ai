@@ -30,6 +30,7 @@ export interface AigScannerOptions {
   version: string;
   headers?: Readonly<Record<string, string>>;
   fetch?: typeof globalThis.fetch;
+  requestTimeoutMs?: number;
 }
 
 export class ScannerProtocolError extends Error {
@@ -53,12 +54,20 @@ export class ScannerConfigurationError extends Error {
   }
 }
 
+export class ScannerTimeoutError extends Error {
+  constructor(message = "AIG request exceeded its timeout") {
+    super(message);
+    this.name = "ScannerTimeoutError";
+  }
+}
+
 export class AigScanner implements ScannerAdapter {
   readonly name = "aig";
   readonly #baseUrl: string;
   readonly #version: string;
   readonly #headers: Readonly<Record<string, string>>;
   readonly #fetch: typeof globalThis.fetch;
+  readonly #requestTimeoutMs: number;
 
   constructor(options: AigScannerOptions) {
     this.#baseUrl = scannerOrigin(options.baseUrl);
@@ -66,6 +75,10 @@ export class AigScanner implements ScannerAdapter {
     this.#version = options.version.trim();
     this.#headers = options.headers ?? {};
     this.#fetch = options.fetch ?? globalThis.fetch;
+    this.#requestTimeoutMs = options.requestTimeoutMs ?? 30_000;
+    if (!Number.isInteger(this.#requestTimeoutMs) || this.#requestTimeoutMs < 1 || this.#requestTimeoutMs > 300_000) {
+      throw new ScannerConfigurationError("AIG request timeout must be between 1 ms and 5 minutes");
+    }
   }
 
   supports(): boolean {
@@ -110,15 +123,24 @@ export class AigScanner implements ScannerAdapter {
   }
 
   async #request(path: string, init: RequestInit = {}): Promise<z.infer<typeof envelopeSchema>> {
-    const response = await this.#fetch(`${this.#baseUrl}${path}`, {
-      ...init,
-      headers: {
-        accept: "application/json",
-        ...(init.body ? { "content-type": "application/json" } : {}),
-        ...this.#headers,
-        ...init.headers,
-      },
-    });
+    const timeoutSignal = AbortSignal.timeout(this.#requestTimeoutMs);
+    const signal = init.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal;
+    let response: Response;
+    try {
+      response = await this.#fetch(`${this.#baseUrl}${path}`, {
+        ...init,
+        signal,
+        headers: {
+          accept: "application/json",
+          ...(init.body ? { "content-type": "application/json" } : {}),
+          ...this.#headers,
+          ...init.headers,
+        },
+      });
+    } catch (error) {
+      if (isAbortError(error)) throw new ScannerTimeoutError();
+      throw error;
+    }
     if (!response.ok) throw new ScannerProtocolError(`AIG returned HTTP ${response.status}`);
     const parsed = envelopeSchema.safeParse(await response.json());
     if (!parsed.success) throw new ScannerProtocolError("AIG returned an invalid response envelope", parsed.error);
@@ -131,6 +153,10 @@ export class AigScanner implements ScannerAdapter {
   #assertHandle(handle: ScannerHandle): void {
     if (handle.scanner !== this.name) throw new ScannerProtocolError(`Handle belongs to scanner ${handle.scanner}`);
   }
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError");
 }
 
 function scannerOrigin(value: string): string {

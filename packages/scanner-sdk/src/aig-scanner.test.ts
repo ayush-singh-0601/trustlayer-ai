@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { AigScanner, ScannerCapabilityError, ScannerConfigurationError } from "./aig-scanner.js";
+import {
+  AigScanner,
+  ScannerCapabilityError,
+  ScannerConfigurationError,
+  ScannerTimeoutError,
+} from "./aig-scanner.js";
 
 function jsonResponse(data: unknown): Response {
   return new Response(JSON.stringify(data), { status: 200, headers: { "content-type": "application/json" } });
@@ -13,6 +18,25 @@ describe("AigScanner", () => {
     "not-a-url",
   ])("rejects unsafe scanner base URL %s", (baseUrl) => {
     expect(() => new AigScanner({ baseUrl, version: "fixture" })).toThrow(ScannerConfigurationError);
+  });
+
+  it("bounds scanner HTTP calls with a configurable timeout", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async (_input, init) => {
+      await new Promise<void>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(init.signal?.reason), { once: true });
+      });
+      return new Response();
+    });
+    const scanner = new AigScanner({
+      baseUrl: "http://aig.internal:8088",
+      version: "fixture",
+      requestTimeoutMs: 5,
+      fetch,
+    });
+
+    await expect(scanner.submit({ scanType: "infrastructure", targets: ["https://agent.example.com"] })).rejects.toBeInstanceOf(
+      ScannerTimeoutError,
+    );
   });
 
   it("maps infrastructure submissions to the official task API", async () => {
