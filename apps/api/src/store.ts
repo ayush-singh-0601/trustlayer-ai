@@ -54,6 +54,7 @@ export interface TrustLayerStore {
     input: CreateAssessmentInput,
     idempotencyKey: string,
   ): Promise<Assessment>;
+  listAssessments(organizationId: string, assetId?: string): Promise<Assessment[]>;
   getAssessment(organizationId: string, assessmentId: string): Promise<Assessment | null>;
   finalizeAssessment(
     organizationId: string,
@@ -149,6 +150,15 @@ export class InMemoryTrustLayerStore implements TrustLayerStore {
   async getAssessment(organizationId: string, assessmentId: string): Promise<Assessment | null> {
     const assessment = this.#assessments.get(assessmentId);
     return assessment?.organizationId === organizationId ? assessment : null;
+  }
+
+  async listAssessments(organizationId: string, assetId?: string): Promise<Assessment[]> {
+    return [...this.#assessments.values()]
+      .filter(
+        (assessment) =>
+          assessment.organizationId === organizationId && (assetId === undefined || assessment.assetId === assetId),
+      )
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   }
 
   async finalizeAssessment(

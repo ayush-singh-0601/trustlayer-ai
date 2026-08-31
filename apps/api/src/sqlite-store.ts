@@ -171,6 +171,17 @@ export class SqliteTrustLayerStore implements TrustLayerStore {
     return row ? assessmentSchema.parse(JSON.parse(row.payload)) : null;
   }
 
+  async listAssessments(organizationId: string, assetId?: string): Promise<Assessment[]> {
+    const rows = assetId
+      ? (this.#database
+          .prepare("SELECT payload FROM assessments WHERE organization_id = ? AND asset_id = ? ORDER BY rowid DESC")
+          .all(organizationId, assetId) as unknown as JsonRow[])
+      : (this.#database
+          .prepare("SELECT payload FROM assessments WHERE organization_id = ? ORDER BY rowid DESC")
+          .all(organizationId) as unknown as JsonRow[]);
+    return rows.map(({ payload }) => assessmentSchema.parse(JSON.parse(payload)));
+  }
+
   async finalizeAssessment(
     organizationId: string,
     assessmentId: string,

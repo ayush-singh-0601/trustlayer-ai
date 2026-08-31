@@ -32,4 +32,26 @@ describe("assessment idempotency", () => {
       ),
     ).rejects.toBeInstanceOf(IdempotencyConflictError);
   });
+
+  it("lists assessment history within the tenant and optional asset scope", async () => {
+    const store = new InMemoryTrustLayerStore();
+    const organizationId = randomUUID();
+    const otherOrganizationId = randomUUID();
+    const userId = randomUUID();
+    const assetId = randomUUID();
+    const otherAssetId = randomUUID();
+    const makeInput = (targetAssetId: string) => ({
+      assetId: targetAssetId,
+      authorizationId: randomUUID(),
+      requestedScans: ["infrastructure"] as const,
+      reason: "manual" as const,
+    });
+
+    await store.createAssessment(organizationId, userId, makeInput(assetId), "history-key-1");
+    await store.createAssessment(organizationId, userId, makeInput(otherAssetId), "history-key-2");
+    await store.createAssessment(otherOrganizationId, userId, makeInput(assetId), "history-key-3");
+
+    expect(await store.listAssessments(organizationId)).toHaveLength(2);
+    expect(await store.listAssessments(organizationId, assetId)).toHaveLength(1);
+  });
 });
