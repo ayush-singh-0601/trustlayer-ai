@@ -9,10 +9,12 @@ export function redactDeep(value: unknown): unknown {
   }
   if (typeof value === "string") {
     return value
+      .replace(/\b(https?:\/\/)[^/\s:@]+:[^@\s/]+@/gi, "$1[REDACTED]:[REDACTED]@")
+      .replace(/([?&](?:access[_-]?token|api[_-]?key|token|secret|password)=)[^&#\s]+/gi, "$1[REDACTED]")
       .replace(/(authorization\s*[:=]\s*(?:bearer\s+)?)[^\s,;]+/gi, "$1[REDACTED]")
-      .replace(/((?:api[_-]?key|token|secret|password)\s*[:=]\s*)[^\s,;]+/gi, "$1[REDACTED]")
-      .replace(/\bsk-[A-Za-z0-9_-]{8,}\b/g, "[REDACTED]");
+      .replace(/((?:api[_-]?key|token|secret|password)\s*[:=]\s*)[^\s,;&#]+/gi, "$1[REDACTED]")
+      .replace(/\bsk-[A-Za-z0-9_-]{8,}\b/g, "[REDACTED]")
+      .replace(/\beyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[REDACTED]");
   }
   return value;
 }
-

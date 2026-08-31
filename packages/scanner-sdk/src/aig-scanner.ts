@@ -7,6 +7,7 @@ import type {
   ScannerResult,
   ScannerStatus,
 } from "./types.js";
+import { redactDeep } from "./redaction.js";
 
 const envelopeSchema = z.object({
   status: z.number(),
@@ -80,7 +81,7 @@ export class AigScanner implements ScannerAdapter {
     if (data.title !== undefined) status.title = data.title;
     if (data.created_at !== undefined) status.createdAt = new Date(data.created_at);
     if (data.updated_at !== undefined) status.updatedAt = new Date(data.updated_at);
-    if (data.log !== undefined) status.redactedLog = redactSecrets(data.log);
+    if (data.log !== undefined) status.redactedLog = String(redactDeep(data.log));
     return status;
   }
 
@@ -180,11 +181,4 @@ function toAigModel(model: ModelConfiguration): Record<string, string> {
     ...(model.token ? { token: model.token } : {}),
     ...(model.baseUrl ? { base_url: model.baseUrl } : {}),
   };
-}
-
-function redactSecrets(log: string): string {
-  return log
-    .replace(/(authorization\s*[:=]\s*(?:bearer\s+)?)[^\s,;]+/gi, "$1[REDACTED]")
-    .replace(/((?:api[_-]?key|token|secret)\s*[:=]\s*)[^\s,;]+/gi, "$1[REDACTED]")
-    .replace(/\bsk-[A-Za-z0-9_-]{8,}\b/g, "[REDACTED]");
 }
