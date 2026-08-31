@@ -33,6 +33,8 @@ export interface RunJobDependencies {
   wait?: (milliseconds: number) => Promise<void>;
   now?: () => number;
   loadRequest?: (job: ScanJob) => Promise<ScannerRequest>;
+  callbackAttempts?: number;
+  callbackRetryDelayMs?: number;
 }
 
 export async function executeAndReport(job: ScanJob, dependencies: RunJobDependencies): Promise<WorkerOutcome> {
@@ -51,7 +53,7 @@ export async function executeAndReport(job: ScanJob, dependencies: RunJobDepende
       redactedError: redactError(error),
     };
   }
-  await report(job, outcome, dependencies.fetch ?? globalThis.fetch);
+  await reportWithRetry(job, outcome, dependencies);
   return outcome;
 }
 
@@ -118,6 +120,27 @@ async function report(job: ScanJob, outcome: WorkerOutcome, fetch: typeof global
     body: JSON.stringify(outcome),
   });
   if (!response.ok) throw new Error(`Coordinator callback failed with HTTP ${response.status}`);
+}
+
+async function reportWithRetry(
+  job: ScanJob,
+  outcome: WorkerOutcome,
+  dependencies: RunJobDependencies,
+): Promise<void> {
+  const attempts = dependencies.callbackAttempts ?? 3;
+  const delay = dependencies.callbackRetryDelayMs ?? 500;
+  const wait = dependencies.wait ?? ((milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      await report(job, outcome, dependencies.fetch ?? globalThis.fetch);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) await wait(delay * 2 ** (attempt - 1));
+    }
+  }
+  throw lastError;
 }
 
 async function loadBrokeredRequest(job: ScanJob, fetch: typeof globalThis.fetch): Promise<ScannerRequest> {

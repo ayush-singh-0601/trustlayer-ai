@@ -101,4 +101,22 @@ describe("isolated AIG worker", () => {
     expect(outcome.redactedError).toContain("not assigned");
     expect(submit).not.toHaveBeenCalled();
   });
+
+  it("retries transient coordinator callback failures", async () => {
+    const callback = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    const outcome = await executeAndReport(job, {
+      scanner: new FixtureScanner(),
+      resolveHost: async () => [{ address: "93.184.216.34", family: 4 }],
+      fetch: callback,
+      loadRequest: async () => ({ scanType: "agent", agentConfig: "provider: custom" }),
+      wait: async () => undefined,
+    });
+
+    expect(outcome.state).toBe("succeeded");
+    expect(callback).toHaveBeenCalledTimes(2);
+  });
 });
