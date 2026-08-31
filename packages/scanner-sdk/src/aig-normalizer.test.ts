@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeAigResult } from "./aig-normalizer.js";
+import { normalizeAigResult, ScannerNormalizationError } from "./aig-normalizer.js";
 
 describe("AIG normalization", () => {
   it("extracts nested scanner findings without retaining AIG field names in the domain model", () => {
@@ -69,5 +69,35 @@ describe("AIG normalization", () => {
     expect(forward.map(({ fingerprint }) => fingerprint).sort()).toEqual(
       reversed.map(({ fingerprint }) => fingerprint).sort(),
     );
+  });
+
+  it("fails safely on excessively deep or cyclic scanner output", () => {
+    const context = {
+      assetName: "Gateway",
+      dataCategories: ["company_documents" as const],
+      permissions: ["read" as const],
+      blastRadius: "medium" as const,
+    };
+    let nested: Record<string, unknown> = {};
+    const root = nested;
+    for (let depth = 0; depth < 25; depth += 1) {
+      nested.next = {};
+      nested = nested.next as Record<string, unknown>;
+    }
+    expect(() =>
+      normalizeAigResult(
+        { scanner: "aig", scannerVersion: "fixture", externalId: "deep", scanType: "infrastructure", raw: root },
+        context,
+      ),
+    ).toThrow(ScannerNormalizationError);
+
+    const cyclic: Record<string, unknown> = {};
+    cyclic.self = cyclic;
+    expect(
+      normalizeAigResult(
+        { scanner: "aig", scannerVersion: "fixture", externalId: "cycle", scanType: "infrastructure", raw: cyclic },
+        context,
+      ),
+    ).toEqual([]);
   });
 });

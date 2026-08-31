@@ -23,7 +23,17 @@ interface Candidate {
   description: string;
   recommendation: string | null;
   severity: NormalizedFinding["severity"];
-  path: string;
+}
+
+const MAX_NORMALIZATION_DEPTH = 20;
+const MAX_NORMALIZATION_NODES = 50_000;
+const MAX_NORMALIZED_FINDINGS = 1_000;
+
+export class ScannerNormalizationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ScannerNormalizationError";
+  }
 }
 
 const severityKeys = ["severity", "risk_level", "riskLevel", "level", "risk", "cvss"];
@@ -83,30 +93,55 @@ export function normalizeAigResult(result: ScannerResult, context: AigNormalizat
   return [...normalized.values()];
 }
 
-function collectCandidates(value: unknown, path = "result", candidates: Candidate[] = []): Candidate[] {
-  if (Array.isArray(value)) {
-    value.forEach((item, index) => collectCandidates(item, `${path}[${index}]`, candidates));
-    return candidates;
-  }
-  if (!isRecord(value)) return candidates;
+function collectCandidates(value: unknown): Candidate[] {
+  const candidates: Candidate[] = [];
+  const stack: Array<{ value: unknown; depth: number }> = [{ value, depth: 0 }];
+  const visited = new WeakSet<object>();
+  let nodes = 0;
 
-  const severityValue = firstValue(value, severityKeys);
-  const titleValue = firstString(value, titleKeys);
-  if (severityValue !== undefined && titleValue) {
-    const severity = normalizeSeverity(severityValue);
-    if (severity) {
-      candidates.push({
-        title: titleValue.slice(0, 300),
-        description: (firstString(value, descriptionKeys) ?? titleValue).slice(0, 10_000),
-        recommendation: firstString(value, recommendationKeys)?.slice(0, 2_000) ?? null,
-        severity,
-        path,
-      });
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current) break;
+    nodes += 1;
+    if (nodes > MAX_NORMALIZATION_NODES) {
+      throw new ScannerNormalizationError("Scanner result exceeds the normalization node limit");
     }
-  }
+    if (current.depth > MAX_NORMALIZATION_DEPTH) {
+      throw new ScannerNormalizationError("Scanner result exceeds the normalization depth limit");
+    }
+    if (!current.value || typeof current.value !== "object") continue;
+    if (visited.has(current.value)) continue;
+    visited.add(current.value);
 
-  for (const [key, nested] of Object.entries(value)) {
-    if (nested && typeof nested === "object") collectCandidates(nested, `${path}.${key}`, candidates);
+    if (Array.isArray(current.value)) {
+      for (let index = current.value.length - 1; index >= 0; index -= 1) {
+        stack.push({ value: current.value[index], depth: current.depth + 1 });
+      }
+      continue;
+    }
+    if (!isRecord(current.value)) continue;
+
+    const severityValue = firstValue(current.value, severityKeys);
+    const titleValue = firstString(current.value, titleKeys);
+    if (severityValue !== undefined && titleValue) {
+      const severity = normalizeSeverity(severityValue);
+      if (severity) {
+        candidates.push({
+          title: titleValue.slice(0, 300),
+          description: (firstString(current.value, descriptionKeys) ?? titleValue).slice(0, 10_000),
+          recommendation: firstString(current.value, recommendationKeys)?.slice(0, 2_000) ?? null,
+          severity,
+        });
+        if (candidates.length > MAX_NORMALIZED_FINDINGS) {
+          throw new ScannerNormalizationError("Scanner result exceeds the normalized finding limit");
+        }
+      }
+    }
+
+    const nested = Object.values(current.value);
+    for (let index = nested.length - 1; index >= 0; index -= 1) {
+      stack.push({ value: nested[index], depth: current.depth + 1 });
+    }
   }
   return candidates;
 }
