@@ -98,6 +98,9 @@ export class AigScanner implements ScannerAdapter {
     this.#assertHandle(handle);
     const response = await this.#request(`/api/v1/app/taskapi/status/${encodeURIComponent(handle.externalId)}`);
     const data = statusDataSchema.parse(response.data);
+    if (data.session_id !== handle.externalId) {
+      throw new ScannerProtocolError("AIG status response belongs to a different session");
+    }
     const status: ScannerStatus = { state: data.status, externalId: data.session_id };
     if (data.title !== undefined) status.title = data.title;
     if (data.created_at !== undefined) status.createdAt = new Date(data.created_at);

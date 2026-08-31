@@ -193,6 +193,17 @@ describe("AigScanner", () => {
     expect((await scanner.result(handle)).raw).toEqual({ findings: [] });
   });
 
+  it("rejects status responses for a different scanner session", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
+      jsonResponse({ status: 0, data: { session_id: "session-2", status: "running" } }),
+    );
+    const scanner = new AigScanner({ baseUrl: "http://aig.internal:8088", version: "fixture", fetch });
+
+    await expect(
+      scanner.status({ scanner: "aig", externalId: "session-1", scanType: "agent" }),
+    ).rejects.toThrow("different session");
+  });
+
   it("fails explicitly because AIG does not document cancellation", async () => {
     const scanner = new AigScanner({ baseUrl: "http://aig.internal:8088", version: "fixture" });
     await expect(scanner.cancel({ scanner: "aig", externalId: "x", scanType: "agent" })).rejects.toBeInstanceOf(
