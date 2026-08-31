@@ -52,6 +52,23 @@ describe("Trust Score v1", () => {
     expect(calculateTrustScore(input).components[0]?.findingCount).toBe(1);
   });
 
+  it("keeps the highest-risk version of a duplicate fingerprint", () => {
+    const result = calculateTrustScore({
+      findings: [
+        finding({ severity: "low" }),
+        finding({ severity: "critical", impactTypes: ["data_exfiltration"] }),
+      ],
+      context,
+      applicableCategories: ["agent_behavior"],
+      assessedCategories: ["agent_behavior"],
+      assessmentComplete: true,
+      monitoringActive: false,
+    });
+
+    expect(result.components[0]).toMatchObject({ findingCount: 1, score: 0 });
+    expect(result.decision).toBe("blocked");
+  });
+
   it("blocks catastrophic critical findings regardless of average", () => {
     const result = calculateTrustScore({
       findings: [
@@ -94,4 +111,3 @@ describe("Trust Score v1", () => {
     expect(findings[0]).toMatchObject({ category: "permissions", severity: "critical", permissions: ["bulk_export"] });
   });
 });
-

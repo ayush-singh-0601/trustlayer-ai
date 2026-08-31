@@ -96,18 +96,38 @@ function atLeast(current: TrustDecision, minimum: TrustDecision): TrustDecision 
   return decisionRank[current] >= decisionRank[minimum] ? current : minimum;
 }
 
-function uniqueOpenFindings(findings: readonly NormalizedFinding[]): NormalizedFinding[] {
+function uniqueOpenFindings(findings: readonly NormalizedFinding[], context: BusinessContext): NormalizedFinding[] {
   const unique = new Map<string, NormalizedFinding>();
   for (const finding of findings) {
-    if (finding.status === "open" && !unique.has(finding.fingerprint)) unique.set(finding.fingerprint, finding);
+    if (finding.status !== "open") continue;
+    const existing = unique.get(finding.fingerprint);
+    if (!existing || dangerRank(finding, context) > dangerRank(existing, context)) {
+      unique.set(finding.fingerprint, finding);
+    }
   }
   return [...unique.values()];
+}
+
+function dangerRank(finding: NormalizedFinding, context: BusinessContext): number {
+  const gateRank =
+    finding.severity === "critical" && finding.impactTypes.some((impact) => catastrophicImpacts.has(impact))
+      ? 4
+      : finding.severity === "critical"
+        ? 3
+        : finding.severity === "high" &&
+            (finding.affectedData.some((data) => sensitiveData.has(data)) ||
+              finding.permissions.some((permission) => highImpactPermissions.has(permission)))
+          ? 2
+          : finding.severity === "high"
+            ? 1
+            : 0;
+  return gateRank * 1_000 + adjustedFindingRisk(finding, context);
 }
 
 export function calculateTrustScore(input: CalculateTrustScoreInput): TrustScoreResult {
   const applicable = new Set(input.applicableCategories);
   const assessed = new Set(input.assessedCategories.filter((category) => applicable.has(category)));
-  const findings = uniqueOpenFindings(input.findings);
+  const findings = uniqueOpenFindings(input.findings, input.context);
   const applicableWeight = [...applicable].reduce((total, category) => total + CATEGORY_WEIGHTS[category], 0);
   const assessedWeight = [...assessed].reduce((total, category) => total + CATEGORY_WEIGHTS[category], 0);
   const coveragePercent = applicableWeight === 0 ? 0 : Math.round((assessedWeight / applicableWeight) * 100);
@@ -182,4 +202,3 @@ export function calculateTrustScore(input: CalculateTrustScoreInput): TrustScore
     appliedGates,
   };
 }
-
