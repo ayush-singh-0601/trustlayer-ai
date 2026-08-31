@@ -139,10 +139,16 @@ export class AigScanner implements ScannerAdapter {
       });
     } catch (error) {
       if (isAbortError(error)) throw new ScannerTimeoutError();
-      throw error;
+      throw new ScannerProtocolError("Could not reach AIG", error);
     }
     if (!response.ok) throw new ScannerProtocolError(`AIG returned HTTP ${response.status}`);
-    const parsed = envelopeSchema.safeParse(await response.json());
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch (error) {
+      throw new ScannerProtocolError("AIG returned malformed JSON", error);
+    }
+    const parsed = envelopeSchema.safeParse(body);
     if (!parsed.success) throw new ScannerProtocolError("AIG returned an invalid response envelope", parsed.error);
     if (parsed.data.status !== 0) {
       throw new ScannerProtocolError(parsed.data.message ?? "AIG reported an unsuccessful operation", parsed.data.data);

@@ -3,6 +3,7 @@ import {
   AigScanner,
   ScannerCapabilityError,
   ScannerConfigurationError,
+  ScannerProtocolError,
   ScannerTimeoutError,
 } from "./aig-scanner.js";
 
@@ -37,6 +38,27 @@ describe("AigScanner", () => {
     await expect(scanner.submit({ scanType: "infrastructure", targets: ["https://agent.example.com"] })).rejects.toBeInstanceOf(
       ScannerTimeoutError,
     );
+  });
+
+  it("normalizes network and malformed JSON failures", async () => {
+    const request = { scanType: "infrastructure" as const, targets: ["https://agent.example.com"] };
+    const offline = new AigScanner({
+      baseUrl: "http://aig.internal:8088",
+      version: "fixture",
+      fetch: vi.fn<typeof globalThis.fetch>().mockRejectedValue(new TypeError("connection reset")),
+    });
+    await expect(offline.submit(request)).rejects.toMatchObject({
+      name: "ScannerProtocolError",
+      message: "Could not reach AIG",
+    });
+
+    const malformed = new AigScanner({
+      baseUrl: "http://aig.internal:8088",
+      version: "fixture",
+      fetch: vi.fn<typeof globalThis.fetch>().mockResolvedValue(new Response("not json", { status: 200 })),
+    });
+    await expect(malformed.submit(request)).rejects.toBeInstanceOf(ScannerProtocolError);
+    await expect(malformed.submit(request)).rejects.toThrow("malformed JSON");
   });
 
   it("maps infrastructure submissions to the official task API", async () => {
