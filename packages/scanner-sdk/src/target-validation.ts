@@ -26,9 +26,10 @@ export async function validatePublicHttpsTarget(target: string, resolveHost: Hos
   if (url.username || url.password) throw new UnsafeTargetError("Target URLs cannot contain credentials");
   if (url.port && url.port !== "443") throw new UnsafeTargetError("MVP scans are restricted to HTTPS port 443");
 
-  const addresses = isIP(url.hostname)
-    ? [{ address: url.hostname, family: isIP(url.hostname) }]
-    : await resolveHost(url.hostname);
+  const hostname = normalizedHostname(url);
+  const addresses = isIP(hostname)
+    ? [{ address: hostname, family: isIP(hostname) }]
+    : await resolveHost(hostname);
   if (addresses.length === 0) throw new UnsafeTargetError("Target hostname did not resolve");
   if (addresses.some(({ address }) => !isPublicAddress(address))) {
     throw new UnsafeTargetError("Target resolves to a private, local, reserved, or metadata address");
@@ -46,9 +47,10 @@ export async function validateLocalScanTarget(
   }
   if (url.username || url.password) throw new UnsafeTargetError("Target URLs cannot contain credentials");
 
-  const addresses = isIP(url.hostname)
-    ? [{ address: url.hostname, family: isIP(url.hostname) }]
-    : await resolveHost(url.hostname);
+  const hostname = normalizedHostname(url);
+  const addresses = isIP(hostname)
+    ? [{ address: hostname, family: isIP(hostname) }]
+    : await resolveHost(hostname);
   if (addresses.length === 0) throw new UnsafeTargetError("Target hostname did not resolve");
   const publicFlags = addresses.map(({ address }) => isPublicAddress(address));
   const localFlags = addresses.map(({ address }) => isLocalAddress(address));
@@ -112,13 +114,21 @@ function isPublicIpv4(address: string): boolean {
 function isPublicIpv6(address: string): boolean {
   const normalized = address.toLowerCase();
   if (normalized === "::" || normalized === "::1") return false;
+  if (normalized.startsWith("::") && !normalized.startsWith("::ffff:")) return false;
   if (normalized.startsWith("fc") || normalized.startsWith("fd")) return false;
-  if (/^fe[89ab]/.test(normalized)) return false;
+  if (/^fe[89abcdef]/.test(normalized)) return false;
   if (normalized.startsWith("ff")) return false;
+  if (normalized.startsWith("64:ff9b:") || normalized.startsWith("100:")) return false;
+  if (normalized.startsWith("2001:0:") || normalized.startsWith("2001:10:") || normalized.startsWith("2001:20:")) return false;
   if (normalized.startsWith("2001:db8:")) return false;
+  if (normalized.startsWith("2002:")) return false;
   if (normalized.startsWith("::ffff:")) {
     const mapped = normalized.slice("::ffff:".length);
     return isIP(mapped) === 4 && isPublicIpv4(mapped);
   }
   return true;
+}
+
+function normalizedHostname(url: URL): string {
+  return url.hostname.startsWith("[") && url.hostname.endsWith("]") ? url.hostname.slice(1, -1) : url.hostname;
 }

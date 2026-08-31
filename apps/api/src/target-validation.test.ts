@@ -24,6 +24,19 @@ describe("active scan target validation", () => {
     expect(isPublicAddress(address)).toBe(false);
   });
 
+  it.each([
+    "::",
+    "::ffff:127.0.0.1",
+    "64:ff9b::1",
+    "100::1",
+    "2001:db8::1",
+    "2002:7f00:1::",
+    "fec0::1",
+    "ff02::1",
+  ])("rejects unsafe IPv6 range member %s", (address) => {
+    expect(isPublicAddress(address)).toBe(false);
+  });
+
   it("rejects DNS names when any answer is private", async () => {
     await expect(
       validatePublicHttpsTarget("https://agent.example.com", async () => [
@@ -47,6 +60,7 @@ describe("active scan target validation", () => {
         { address: "127.0.0.1", family: 4 },
       ]),
     ).resolves.toBeInstanceOf(URL);
+    await expect(validateLocalScanTarget("http://[::1]:11434")).resolves.toBeInstanceOf(URL);
   });
 
   it("still blocks cloud metadata and public plaintext HTTP", async () => {
