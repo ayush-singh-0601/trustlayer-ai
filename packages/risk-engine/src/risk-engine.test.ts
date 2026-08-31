@@ -105,6 +105,20 @@ describe("Trust Score v1", () => {
     expect(result.decision).toBe("security_review_required");
   });
 
+  it("does not label an incomplete assessment as verified testing", () => {
+    const result = calculateTrustScore({
+      findings: [],
+      context,
+      applicableCategories: ["permissions"],
+      assessedCategories: ["permissions"],
+      assessmentComplete: false,
+      monitoringActive: false,
+    });
+
+    expect(result.evidenceLevel).toBe("externally_assessed");
+    expect(result.appliedGates).toContain("incomplete_assessment");
+  });
+
   it("turns declared excess access into deterministic findings", () => {
     const findings = analyzeExcessPermissions(context, new Date("2026-08-22T12:00:00.000Z"));
     expect(findings).toHaveLength(1);

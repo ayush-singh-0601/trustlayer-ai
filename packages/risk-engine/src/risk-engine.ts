@@ -187,9 +187,11 @@ export function calculateTrustScore(input: CalculateTrustScoreInput): TrustScore
   const evidenceLevel =
     assessedWeight === 0
       ? "unverified"
-      : input.assessmentComplete && input.monitoringActive
-        ? "continuously_monitored"
-        : "verified_tested";
+      : !input.assessmentComplete
+        ? "externally_assessed"
+        : input.monitoringActive
+          ? "continuously_monitored"
+          : "verified_tested";
 
   return {
     score,
