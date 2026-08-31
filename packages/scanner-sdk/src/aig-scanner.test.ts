@@ -1,11 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
-import { AigScanner, ScannerCapabilityError } from "./aig-scanner.js";
+import { AigScanner, ScannerCapabilityError, ScannerConfigurationError } from "./aig-scanner.js";
 
 function jsonResponse(data: unknown): Response {
   return new Response(JSON.stringify(data), { status: 200, headers: { "content-type": "application/json" } });
 }
 
 describe("AigScanner", () => {
+  it.each([
+    "ftp://aig.internal",
+    "http://user:secret@aig.internal",
+    "http://aig.internal/base/path",
+    "not-a-url",
+  ])("rejects unsafe scanner base URL %s", (baseUrl) => {
+    expect(() => new AigScanner({ baseUrl, version: "fixture" })).toThrow(ScannerConfigurationError);
+  });
+
   it("maps infrastructure submissions to the official task API", async () => {
     const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
       jsonResponse({ status: 0, message: "ok", data: { session_id: "session-1" } }),

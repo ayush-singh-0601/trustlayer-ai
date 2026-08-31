@@ -46,6 +46,13 @@ export class ScannerCapabilityError extends Error {
   }
 }
 
+export class ScannerConfigurationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ScannerConfigurationError";
+  }
+}
+
 export class AigScanner implements ScannerAdapter {
   readonly name = "aig";
   readonly #baseUrl: string;
@@ -54,8 +61,9 @@ export class AigScanner implements ScannerAdapter {
   readonly #fetch: typeof globalThis.fetch;
 
   constructor(options: AigScannerOptions) {
-    this.#baseUrl = options.baseUrl.replace(/\/$/, "");
-    this.#version = options.version;
+    this.#baseUrl = scannerOrigin(options.baseUrl);
+    if (!options.version.trim()) throw new ScannerConfigurationError("AIG version must not be empty");
+    this.#version = options.version.trim();
     this.#headers = options.headers ?? {};
     this.#fetch = options.fetch ?? globalThis.fetch;
   }
@@ -123,6 +131,23 @@ export class AigScanner implements ScannerAdapter {
   #assertHandle(handle: ScannerHandle): void {
     if (handle.scanner !== this.name) throw new ScannerProtocolError(`Handle belongs to scanner ${handle.scanner}`);
   }
+}
+
+function scannerOrigin(value: string): string {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new ScannerConfigurationError("AIG base URL must be an absolute HTTP or HTTPS URL");
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new ScannerConfigurationError("AIG base URL must use HTTP or HTTPS");
+  }
+  if (url.username || url.password) throw new ScannerConfigurationError("AIG base URL cannot contain credentials");
+  if ((url.pathname !== "/" && url.pathname !== "") || url.search || url.hash) {
+    throw new ScannerConfigurationError("AIG base URL must contain only an origin");
+  }
+  return url.origin;
 }
 
 function toAigTask(request: ScannerRequest): { type: string; content: Record<string, unknown> } {
