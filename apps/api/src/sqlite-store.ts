@@ -19,6 +19,7 @@ import type {
   StoredAuthorization,
   TrustLayerStore,
 } from "./store.js";
+import { assertSameAssessmentRequest } from "./store.js";
 
 interface JsonRow {
   payload: string;
@@ -138,7 +139,11 @@ export class SqliteTrustLayerStore implements TrustLayerStore {
       const existing = this.#database
         .prepare("SELECT payload FROM assessments WHERE organization_id = ? AND idempotency_key = ?")
         .get(organizationId, idempotencyKey) as JsonRow | undefined;
-      if (existing) return assessmentSchema.parse(JSON.parse(existing.payload));
+      if (existing) {
+        const assessment = assessmentSchema.parse(JSON.parse(existing.payload));
+        assertSameAssessmentRequest(assessment, input);
+        return assessment;
+      }
 
       const assessment = assessmentSchema.parse({
         ...input,

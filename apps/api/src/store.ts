@@ -31,6 +31,13 @@ export interface FinalizeAssessmentInput {
   findings: NormalizedFinding[];
 }
 
+export class IdempotencyConflictError extends Error {
+  constructor() {
+    super("The Idempotency-Key was already used for a different assessment request");
+    this.name = "IdempotencyConflictError";
+  }
+}
+
 export interface TrustLayerStore {
   listAssets(organizationId: string): Promise<Asset[]>;
   getAsset(organizationId: string, assetId: string): Promise<Asset | null>;
@@ -118,7 +125,11 @@ export class InMemoryTrustLayerStore implements TrustLayerStore {
   ): Promise<Assessment> {
     const key = `${organizationId}:${idempotencyKey}`;
     const existingId = this.#idempotency.get(key);
-    if (existingId) return assessmentSchema.parse(this.#assessments.get(existingId));
+    if (existingId) {
+      const existing = assessmentSchema.parse(this.#assessments.get(existingId));
+      assertSameAssessmentRequest(existing, input);
+      return existing;
+    }
 
     const assessment = assessmentSchema.parse({
       ...input,
@@ -187,6 +198,21 @@ export class InMemoryTrustLayerStore implements TrustLayerStore {
       urgentAssets: assets.filter((asset) => asset.status === "blocked" || asset.status === "restricted"),
     };
   }
+}
+
+export function assertSameAssessmentRequest(existing: Assessment, input: CreateAssessmentInput): void {
+  const existingIdentity = assessmentRequestIdentity(existing);
+  const inputIdentity = assessmentRequestIdentity(input);
+  if (existingIdentity !== inputIdentity) throw new IdempotencyConflictError();
+}
+
+function assessmentRequestIdentity(input: CreateAssessmentInput): string {
+  return JSON.stringify({
+    assetId: input.assetId,
+    authorizationId: input.authorizationId,
+    reason: input.reason,
+    requestedScans: [...input.requestedScans].sort(),
+  });
 }
 
 function statusForDecision(decision: TrustScoreResult["decision"]): Asset["status"] {
