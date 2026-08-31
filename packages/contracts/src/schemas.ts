@@ -35,15 +35,29 @@ export const targetUrlSchema = z.string().url().superRefine((value, context) => 
 
 export const httpsUrlSchema = targetUrlSchema;
 
+function uniqueValues<T>(values: readonly T[]): boolean {
+  return new Set(values).size === values.length;
+}
+
+const uniquePermissionArraySchema = z
+  .array(z.enum(permissionActions))
+  .max(permissionActions.length)
+  .refine(uniqueValues, "Permissions must not contain duplicates");
+
+const uniqueDataCategoryArraySchema = z
+  .array(z.enum(dataCategories))
+  .max(dataCategories.length)
+  .refine(uniqueValues, "Data categories must not contain duplicates");
+
 export const permissionSetSchema = z.object({
-  current: z.array(z.enum(permissionActions)).max(permissionActions.length),
-  required: z.array(z.enum(permissionActions)).max(permissionActions.length),
+  current: uniquePermissionArraySchema,
+  required: uniquePermissionArraySchema,
 });
 
 export const integrationInputSchema = z.object({
   provider: z.string().trim().min(1).max(120),
   targetUrl: targetUrlSchema.optional(),
-  dataCategories: z.array(z.enum(dataCategories)).min(1),
+  dataCategories: uniqueDataCategoryArraySchema.min(1),
   permissions: permissionSetSchema,
   exposureEstimate: z.number().int().nonnegative().max(1_000_000_000).optional(),
 });
@@ -58,7 +72,7 @@ export const createAssetSchema = z.object({
   criticality: z.enum(criticalities),
   environment: z.enum(environments),
   targetUrl: targetUrlSchema,
-  dataCategories: z.array(z.enum(dataCategories)).min(1),
+  dataCategories: uniqueDataCategoryArraySchema.min(1),
   integrations: z.array(integrationInputSchema).max(25).default([]),
 });
 
@@ -143,7 +157,7 @@ export type TrustScoreResult = z.infer<typeof trustScoreResultSchema>;
 export const createAssessmentSchema = z.object({
   assetId: uuidSchema,
   authorizationId: uuidSchema,
-  requestedScans: z.array(z.enum(scanTypes)).min(1),
+  requestedScans: z.array(z.enum(scanTypes)).min(1).max(scanTypes.length).refine(uniqueValues, "Requested scans must not contain duplicates"),
   reason: z.enum(["manual", "scheduled"]).default("manual"),
 });
 
@@ -163,7 +177,7 @@ export type Assessment = z.infer<typeof assessmentSchema>;
 
 export const scanAuthorizationInputSchema = z.object({
   assetId: uuidSchema,
-  targets: z.array(targetUrlSchema).min(1).max(10),
+  targets: z.array(targetUrlSchema).min(1).max(10).refine(uniqueValues, "Targets must not contain duplicates"),
   recurring: z.boolean(),
   confirmed: z.literal(true),
   termsVersion: z.literal("scan-authorization-v1"),

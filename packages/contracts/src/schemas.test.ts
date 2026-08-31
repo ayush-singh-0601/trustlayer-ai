@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createAssetSchema, targetUrlSchema } from "./schemas.js";
+import {
+  createAssessmentSchema,
+  createAssetSchema,
+  scanAuthorizationInputSchema,
+  targetUrlSchema,
+} from "./schemas.js";
 
 describe("public input contracts", () => {
   it("rejects non-HTTPS and credential-bearing targets", () => {
@@ -30,5 +35,27 @@ describe("public input contracts", () => {
     });
 
     expect(result.success).toBe(true);
+  });
+
+  it("rejects duplicate values in set-like request fields", () => {
+    const assetId = "00000000-0000-4000-8000-000000000001";
+    const authorizationId = "00000000-0000-4000-8000-000000000002";
+
+    expect(
+      createAssessmentSchema.safeParse({
+        assetId,
+        authorizationId,
+        requestedScans: ["agent", "agent"],
+      }).success,
+    ).toBe(false);
+    expect(
+      scanAuthorizationInputSchema.safeParse({
+        assetId,
+        targets: ["https://agent.example.com", "https://agent.example.com"],
+        recurring: false,
+        confirmed: true,
+        termsVersion: "scan-authorization-v1",
+      }).success,
+    ).toBe(false);
   });
 });
