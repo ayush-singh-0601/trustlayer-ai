@@ -109,6 +109,29 @@ describe("TrustLayer API vertical slice", () => {
     expect(incompatible.statusCode).toBe(400);
   });
 
+  it("matches authorization targets by canonical URL identity", async () => {
+    const app = await testApp();
+    const created = await app.inject({
+      method: "POST",
+      url: "/v1/assets",
+      payload: { ...validAsset, targetUrl: "https://agent.example.com/" },
+    });
+    const assetId = created.json().data.id as string;
+
+    const response = await app.inject({
+      method: "POST",
+      url: `/v1/assets/${assetId}/scan-authorizations`,
+      payload: {
+        targets: ["https://AGENT.example.com:443/#approved-screen"],
+        recurring: false,
+        confirmed: true,
+        termsVersion: "scan-authorization-v1",
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+  });
+
   it("prevents viewers from mutating inventory", async () => {
     const app = await testApp({ role: "viewer" });
     const response = await app.inject({ method: "POST", url: "/v1/assets", payload: validAsset });

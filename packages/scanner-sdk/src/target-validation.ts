@@ -15,6 +15,12 @@ export class UnsafeTargetError extends Error {
   }
 }
 
+export function canonicalTargetIdentity(target: string): string {
+  const url = new URL(target);
+  url.hash = "";
+  return url.href;
+}
+
 export const systemHostResolver: HostResolver = async (hostname) =>
   lookup(hostname, { all: true, verbatim: true }).then((addresses) =>
     addresses.map(({ address, family }) => ({ address, family })),

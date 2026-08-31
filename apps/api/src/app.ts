@@ -7,6 +7,7 @@ import {
   scanAuthorizationInputSchema,
 } from "@trustlayer/contracts";
 import {
+  canonicalTargetIdentity,
   UnsafeTargetError,
   type HostResolver,
   validateLocalScanTarget,
@@ -109,8 +110,8 @@ export async function createApp(options: CreateAppOptions): Promise<FastifyInsta
     const registeredTargets = new Set([
       asset.targetUrl,
       ...asset.integrations.flatMap((integration) => (integration.targetUrl ? [integration.targetUrl] : [])),
-    ]);
-    if (input.targets.some((target) => !registeredTargets.has(target))) {
+    ].map(canonicalTargetIdentity));
+    if (input.targets.some((target) => !registeredTargets.has(canonicalTargetIdentity(target)))) {
       return reply.code(400).send(problem(400, "Authorization contains an unregistered target", request.id));
     }
     for (const target of input.targets) await validateLocalScanTarget(target, options.resolveHost);
