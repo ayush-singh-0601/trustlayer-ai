@@ -83,4 +83,22 @@ describe("isolated AIG worker", () => {
     expect(submit).not.toHaveBeenCalled();
     expect(callback).toHaveBeenCalledOnce();
   });
+
+  it("rejects a brokered request that widens the assigned target set", async () => {
+    const infrastructureJob = scanJobSchema.parse({ ...job, scanType: "infrastructure" });
+    const scanner = new FixtureScanner();
+    const submit = vi.spyOn(scanner, "submit");
+    const callback = vi.fn<typeof globalThis.fetch>().mockResolvedValue(new Response(null, { status: 204 }));
+
+    const outcome = await executeAndReport(infrastructureJob, {
+      scanner,
+      resolveHost: async () => [{ address: "93.184.216.34", family: 4 }],
+      fetch: callback,
+      loadRequest: async () => ({ scanType: "infrastructure", targets: ["https://attacker.example.com"] }),
+    });
+
+    expect(outcome).toMatchObject({ state: "failed", errorCode: "scanner_failure" });
+    expect(outcome.redactedError).toContain("not assigned");
+    expect(submit).not.toHaveBeenCalled();
+  });
 });

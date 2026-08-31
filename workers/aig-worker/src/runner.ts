@@ -2,6 +2,7 @@ import type { NormalizedFinding } from "@trustlayer/contracts";
 import {
   normalizeAigResult,
   redactDeep,
+  canonicalTargetIdentity,
   scannerRequestSchema,
   type ScannerAdapter,
   type ScannerRequest,
@@ -60,6 +61,13 @@ async function execute(job: ScanJob, dependencies: RunJobDependencies): Promise<
     ? await dependencies.loadRequest(job)
     : await loadBrokeredRequest(job, dependencies.fetch ?? globalThis.fetch);
   if (request.scanType !== job.scanType) throw new Error("Brokered request does not match the assigned scan type");
+  const authorizedTargets = new Set(job.targetsToValidate.map(canonicalTargetIdentity));
+  for (const target of requestTargets(request)) {
+    if (!authorizedTargets.has(canonicalTargetIdentity(target))) {
+      throw new Error("Brokered request contains a target that was not assigned to this job");
+    }
+    await validateLocalScanTarget(target, dependencies.resolveHost);
+  }
   const handle = await dependencies.scanner.submit(request);
   const start = (dependencies.now ?? Date.now)();
   const wait = dependencies.wait ?? ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
@@ -90,6 +98,13 @@ async function execute(job: ScanJob, dependencies: RunJobDependencies): Promise<
     findings,
     redactedRawResult: redactDeep(result.raw),
   };
+}
+
+function requestTargets(request: ScannerRequest): string[] {
+  if (request.scanType === "infrastructure") return request.targets;
+  if (request.scanType === "mcp") return [request.targetUrl];
+  if (request.scanType === "model") return request.targets.flatMap(({ baseUrl }) => (baseUrl ? [baseUrl] : []));
+  return [];
 }
 
 async function report(job: ScanJob, outcome: WorkerOutcome, fetch: typeof globalThis.fetch): Promise<void> {
