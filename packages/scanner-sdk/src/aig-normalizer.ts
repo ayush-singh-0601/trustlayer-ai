@@ -154,6 +154,9 @@ function normalizeSeverity(value: unknown): NormalizedFinding["severity"] | null
     if (value > 0) return "low";
     return "informational";
   }
+  if (isRecord(value)) {
+    return normalizeSeverity(firstValue(value, ["baseScore", "base_score", "score", "value"]));
+  }
   if (typeof value !== "string") return null;
   const normalized = value.toLowerCase();
   if (normalized.includes("critical") || normalized === "severe") return "critical";
@@ -161,7 +164,8 @@ function normalizeSeverity(value: unknown): NormalizedFinding["severity"] | null
   if (normalized.includes("medium") || normalized.includes("moderate")) return "medium";
   if (normalized.includes("low")) return "low";
   if (normalized.includes("info")) return "informational";
-  const numeric = Number.parseFloat(normalized);
+  const labelledScore = normalized.match(/(?:cvss|base|score)\s*(?:score)?\s*[:=]?\s*(10(?:\.0+)?|[0-9](?:\.\d+)?)/)?.[1];
+  const numeric = Number.parseFloat(labelledScore ?? normalized);
   return Number.isFinite(numeric) ? normalizeSeverity(numeric) : null;
 }
 

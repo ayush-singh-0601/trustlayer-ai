@@ -100,4 +100,27 @@ describe("AIG normalization", () => {
       ),
     ).toEqual([]);
   });
+
+  it("normalizes labelled and structured CVSS scores", () => {
+    const findings = normalizeAigResult(
+      {
+        scanner: "aig",
+        scannerVersion: "fixture",
+        externalId: "cvss",
+        scanType: "infrastructure",
+        raw: [
+          { title: "Remote execution", cvss: { baseScore: 9.8 }, description: "Critical package flaw" },
+          { title: "Header weakness", cvss: "CVSS score: 5.4", description: "Missing policy" },
+        ],
+      },
+      {
+        assetName: "Gateway",
+        dataCategories: ["company_documents"],
+        permissions: ["read"],
+        blastRadius: "high",
+      },
+    );
+
+    expect(findings.map(({ severity }) => severity)).toEqual(["critical", "medium"]);
+  });
 });
