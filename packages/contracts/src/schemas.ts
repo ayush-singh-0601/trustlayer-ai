@@ -49,10 +49,23 @@ const uniqueDataCategoryArraySchema = z
   .max(dataCategories.length)
   .refine(uniqueValues, "Data categories must not contain duplicates");
 
-export const permissionSetSchema = z.object({
-  current: uniquePermissionArraySchema,
-  required: uniquePermissionArraySchema,
-});
+export const permissionSetSchema = z
+  .object({
+    current: uniquePermissionArraySchema,
+    required: uniquePermissionArraySchema,
+  })
+  .superRefine(({ current, required }, context) => {
+    const granted = new Set(current);
+    required.forEach((permission, index) => {
+      if (!granted.has(permission)) {
+        context.addIssue({
+          code: "custom",
+          path: ["required", index],
+          message: `Required permission ${permission} is not present in current access`,
+        });
+      }
+    });
+  });
 
 export const integrationInputSchema = z.object({
   provider: z.string().trim().min(1).max(120),

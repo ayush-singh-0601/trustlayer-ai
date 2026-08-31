@@ -58,4 +58,29 @@ describe("public input contracts", () => {
       }).success,
     ).toBe(false);
   });
+
+  it("rejects required permissions that are not currently granted", () => {
+    const result = createAssetSchema.safeParse({
+      name: "Customer Support Agent",
+      vendorName: "Acme AI",
+      type: "custom_http_agent",
+      purpose: "Resolve customer support requests using approved context",
+      department: "Support",
+      businessOwner: "Support Operations",
+      criticality: "high",
+      environment: "production",
+      targetUrl: "https://agent.example.com/api/chat",
+      dataCategories: ["customer_data"],
+      integrations: [
+        {
+          provider: "CRM",
+          dataCategories: ["customer_data"],
+          permissions: { current: ["read"], required: ["write"] },
+        },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.issues[0]?.path).toEqual(["integrations", 0, "permissions", "required", 0]);
+  });
 });
