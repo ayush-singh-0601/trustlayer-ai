@@ -41,5 +41,33 @@ describe("AIG normalization", () => {
     });
     expect(findings[0]?.businessExplanation).not.toContain("risk_level");
   });
-});
 
+  it("keeps finding identity stable when scanner arrays are reordered", () => {
+    const makeResult = (findings: unknown[]) =>
+      normalizeAigResult(
+        {
+          scanner: "aig",
+          scannerVersion: "fixture",
+          externalId: "session-1",
+          scanType: "infrastructure",
+          raw: { findings },
+        },
+        {
+          assetName: "Gateway",
+          dataCategories: ["company_documents"],
+          permissions: ["read"],
+          blastRadius: "medium",
+          detectedAt: new Date("2026-08-23T00:00:00.000Z"),
+        },
+      );
+    const first = { title: "Outdated package", severity: "high", description: "CVE-2026-1000 is installed" };
+    const second = { title: "Weak TLS", severity: "medium", description: "TLS 1.1 is enabled" };
+
+    const forward = makeResult([first, second]);
+    const reversed = makeResult([second, first]);
+
+    expect(forward.map(({ fingerprint }) => fingerprint).sort()).toEqual(
+      reversed.map(({ fingerprint }) => fingerprint).sort(),
+    );
+  });
+});

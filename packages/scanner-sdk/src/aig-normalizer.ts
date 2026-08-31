@@ -40,7 +40,14 @@ export function normalizeAigResult(result: ScannerResult, context: AigNormalizat
     const category = categoryFor(result.scanType, `${candidate.title} ${candidate.description}`);
     const impact = impactFor(`${candidate.title} ${candidate.description}`, result.scanType);
     const fingerprint = createHash("sha256")
-      .update(`${result.scanType}|${candidate.path}|${candidate.title.toLowerCase()}`)
+      .update(
+        [
+          result.scanType,
+          category,
+          stableFingerprintText(candidate.title),
+          stableFingerprintText(candidate.description),
+        ].join("|"),
+      )
       .digest("hex");
     const recommendation = candidate.recommendation ?? defaultRecommendation(category);
     const finding = normalizedFindingSchema.parse({
@@ -184,6 +191,10 @@ function humanize(value: string): string {
   return value.replaceAll("_", " ");
 }
 
+function stableFingerprintText(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
 function firstValue(record: Record<string, unknown>, keys: readonly string[]): unknown {
   for (const key of keys) if (record[key] !== undefined) return record[key];
   return undefined;
@@ -197,4 +208,3 @@ function firstString(record: Record<string, unknown>, keys: readonly string[]): 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-
