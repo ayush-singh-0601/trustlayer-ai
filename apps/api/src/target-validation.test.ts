@@ -11,6 +11,19 @@ describe("active scan target validation", () => {
     (address) => expect(isPublicAddress(address)).toBe(false),
   );
 
+  it.each([
+    "100.64.0.1",
+    "192.0.2.1",
+    "192.88.99.1",
+    "198.18.0.1",
+    "198.51.100.1",
+    "203.0.113.1",
+    "224.0.0.1",
+    "240.0.0.1",
+  ])("rejects non-routable IPv4 range member %s", (address) => {
+    expect(isPublicAddress(address)).toBe(false);
+  });
+
   it("rejects DNS names when any answer is private", async () => {
     await expect(
       validatePublicHttpsTarget("https://agent.example.com", async () => [
@@ -47,5 +60,10 @@ describe("active scan target validation", () => {
         { address: "93.184.216.34", family: 4 },
       ]),
     ).rejects.toThrow("must use HTTPS");
+    await expect(
+      validateLocalScanTarget("http://carrier.example.com", async () => [
+        { address: "100.64.0.1", family: 4 },
+      ]),
+    ).rejects.toThrow("reserved");
   });
 });

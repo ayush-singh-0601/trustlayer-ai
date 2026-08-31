@@ -81,8 +81,7 @@ export function isLocalAddress(address: string): boolean {
       first === 10 ||
       first === 127 ||
       (first === 172 && second >= 16 && second <= 31) ||
-      (first === 192 && second === 168) ||
-      (first === 100 && second >= 64 && second <= 127)
+      (first === 192 && second === 168)
     );
   }
   if (family === 6) {
@@ -101,8 +100,12 @@ function isPublicIpv4(address: string): boolean {
   if (first === 169 && second === 254) return false;
   if (first === 172 && second >= 16 && second <= 31) return false;
   if (first === 192 && second === 0) return false;
+  if (first === 192 && second === 2) return false;
+  if (first === 192 && second === 88) return false;
   if (first === 192 && second === 168) return false;
   if (first === 198 && (second === 18 || second === 19)) return false;
+  if (first === 198 && second === 51) return false;
+  if (first === 203 && second === 0) return false;
   return true;
 }
 
